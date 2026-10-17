@@ -1,0 +1,439 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>FHIR R4 體溫操作台</title>
+  <style>
+    :root{font-family:Inter,"Noto Sans TC",system-ui,-apple-system,"Segoe UI",sans-serif;color:#172235;background:#f4f7fb;font-synthesis:none}
+    *{box-sizing:border-box}body{margin:0}header{background:linear-gradient(125deg,#163f73,#176b79);color:white;padding:30px max(20px,calc((100vw - 1040px)/2)) 26px}
+    header .eyebrow{font-size:.78rem;letter-spacing:.12em;text-transform:uppercase;color:#c4e5ef}h1{font-size:clamp(1.5rem,3vw,2.1rem);margin:6px 0}header p{margin:0;color:#e0f1f5}
+    main{max-width:1040px;margin:24px auto;padding:0 18px 50px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}.card{background:white;border:1px solid #dbe4ee;border-radius:14px;padding:21px;box-shadow:0 5px 18px #1b3b5c0a;margin-bottom:18px}
+    h2{font-size:1.1rem;margin:0 0 15px;display:flex;gap:10px;align-items:center}.step{width:27px;height:27px;border-radius:50%;background:#e5f2f3;color:#176b79;display:inline-grid;place-items:center;font-size:.85rem}
+    label{display:block;font-weight:600;font-size:.92rem;margin:13px 0 5px}input,select{font:inherit;color:inherit;width:100%;padding:10px 11px;border:1px solid #b9c7d6;border-radius:8px;background:white}input:focus,select:focus,button:focus-visible{outline:3px solid #97d5d6;outline-offset:2px}
+    .row{display:grid;grid-template-columns:1fr 1fr;gap:13px}.help,.muted{font-size:.83rem;color:#5d6a7d}.help{margin:6px 0 0}.check{display:flex;align-items:flex-start;gap:10px;font-weight:500}.check input{width:18px;height:18px;margin-top:3px;flex:none}
+    button{font:inherit;font-size:.92rem;font-weight:600;border:0;border-radius:8px;padding:10px 15px;background:#176b79;color:#fff;cursor:pointer;margin:10px 7px 0 0}button.secondary{background:#e9eff5;color:#22344a}button.danger{background:#a9342b}button:disabled{opacity:.45;cursor:not-allowed}.actions{display:flex;flex-wrap:wrap;align-items:center}
+    pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f1f5f9;padding:13px;border-radius:8px;font: .84rem/1.5 ui-monospace,Consolas,monospace;max-height:390px;overflow:auto;margin:10px 0 0}.notice{border-radius:8px;background:#f0f6fa;padding:11px 13px;color:#43566b;font-size:.85rem}.status{white-space:pre-wrap;padding:12px 14px;border-left:4px solid #176b79;background:#eaf4f6;border-radius:6px;margin:0 0 18px}.status.error{border-color:#b42318;background:#fff0ee;color:#7b211a}
+    .table-wrap{overflow:auto}table{border-collapse:collapse;width:100%;font-size:.9rem}th,td{text-align:left;padding:10px;border-bottom:1px solid #e2e8ef;vertical-align:top;overflow-wrap:anywhere}th{color:#526174;background:#f7f9fb}.table-title{display:flex;justify-content:space-between;align-items:center;gap:10px}.badge{font-size:.76rem;background:#e9eff5;padding:4px 8px;border-radius:20px;color:#42536a}
+    details{margin-top:14px}summary{cursor:pointer;color:#315775;font-weight:600}.full{grid-column:1/-1}.token-note{color:#6c5a27;background:#fff8df;padding:9px 11px;border-radius:7px;font-size:.82rem}
+    @media(max-width:720px){.grid{grid-template-columns:1fr}.full{grid-column:auto}.row{grid-template-columns:1fr}header{padding:24px 18px}}
+  </style>
+</head>
+<body>
+<header>
+  <div class="eyebrow">FHIR R4 · 教學操作頁</div>
+  <h1>體溫輸入與調閱</h1>
+  <p>填入講師提供的連線設定，預覽並確認後送出體溫紀錄。</p>
+</header>
+<main>
+  <p id="status" class="status" role="status" aria-live="polite">請填寫講師提供的 FHIR 伺服器與測試資料設定。</p>
+  <div class="grid">
+    <section class="card">
+      <h2><span class="step">1</span>連線與授權設定</h2>
+      <label for="baseUrl">FHIR R4 base URL</label>
+      <input id="baseUrl" type="url" placeholder="貼上講師提供的 base URL" autocomplete="url">
+      <p class="help">例如講師提供的伺服器根網址或 FHIR 服務路徑；本頁不預設伺服器。</p>
+      <label for="patientId">虛構測試病人 ID</label>
+      <input id="patientId" type="text" placeholder="講師提供的 Patient ID" autocomplete="off">
+      <label for="authMode">授權方式</label>
+      <select id="authMode">
+        <option value="">請依講師設定選擇</option>
+        <option value="none">講師確認免授權</option>
+        <option value="bearer">短效 Bearer token</option>
+        <option value="other">其他方式</option>
+      </select>
+      <div id="tokenBox" hidden>
+        <label for="token">短效 access token</label>
+        <input id="token" type="password" placeholder="貼上短效 token，不含 Bearer 前綴" autocomplete="new-password" spellcheck="false">
+        <button id="clearToken" class="secondary" type="button">清除 token</button>
+      </div>
+      <p class="token-note">Token 只保留在此頁記憶體，不寫入檔案、網址或瀏覽器儲存空間。使用 token 時必須是 HTTPS。</p>
+      <label class="check"><input id="fictional" type="checkbox"><span>我確認只使用虛構病人與虛構量測資料</span></label>
+      <div class="actions"><button id="metadataBtn" type="button">檢查伺服器 /metadata</button></div>
+      <p id="metadataResult" class="notice">尚未檢查伺服器能力。</p>
+      <p class="help">metadata 僅列出伺服器自我宣告的能力，不代表實際 POST、CORS 或帳號權限已成功。</p>
+    </section>
+
+    <section class="card">
+      <h2><span class="step">2</span>輸入虛構體溫並產生資料</h2>
+      <label for="measuredAt">量測時間（需包含時區）</label>
+      <input id="measuredAt" type="text" placeholder="2026-10-17T09:00:00+08:00" autocomplete="off">
+      <p class="help">格式例：2026-10-17T09:00:00+08:00，或以 Z 結尾的 UTC 時間。</p>
+      <label for="temperature">體溫（°C）</label>
+      <input id="temperature" type="number" step="any" inputmode="decimal" placeholder="例如 37.8">
+      <p class="help">固定使用 LOINC 8310-5、UCUM Cel。</p>
+      <div class="actions"><button id="previewBtn" type="button">產生 JSON 預覽</button></div>
+      <pre id="preview">尚未產生預覽。</pre>
+    </section>
+
+    <section class="card full">
+      <h2><span class="step">3</span>預覽、確認後上傳</h2>
+      <p class="help">先核對步驟 2 的 JSON 預覽與目標，再勾選確認。上傳成功後會自動依 ID 讀回。</p>
+      <label class="check"><input id="confirmUpload" type="checkbox" disabled><span>我已核對 JSON 與目標伺服器，確認上傳</span></label>
+      <p id="postTarget" class="help"></p>
+      <button id="postBtn" type="button" disabled>確認後 POST</button>
+    </section>
+    <section class="card full">
+      <div class="table-title"><h2><span class="step">4</span>讀回並核對這次上傳</h2><span id="pageBadge" class="badge">尚無結果</span></div>
+      <div class="row">
+        <div><label for="observationId">Observation ID</label><input id="observationId" type="text" placeholder="可用上傳回傳的 ID" autocomplete="off"></div>
+        <div class="actions" style="align-self:end">
+          <button id="readBtn" type="button">依 ID 讀回</button>
+        </div>
+      </div>
+      <p class="help">查詢會使用目前病人 ID 與固定體溫代碼。表格只列出 LOINC 8310-5 的 Observation。</p>
+      <div class="table-wrap" style="margin-top:14px">
+        <table>
+          <thead><tr><th>Observation ID</th><th>病人</th><th>量測時間</th><th>數值</th><th>單位</th></tr></thead>
+          <tbody id="results"><tr><td colspan="5" class="muted">尚無資料</td></tr></tbody>
+        </table>
+      </div>
+      <details><summary>檢視最近一次伺服器回應</summary><pre id="response">尚無回應。</pre></details>
+      <p id="comparison" class="notice">上傳後可核對病人、時間、數值與 UCUM Cel。</p>
+    </section>
+    <section class="card full">
+      <h2><span class="step">5</span>依病人查詢與載入下一頁</h2>
+      <p class="help">使用步驟 1 的病人 ID，依 Observation 體溫代碼查詢。</p>
+      <button id="searchBtn" class="secondary" type="button">依設定的病人查詢體溫</button>
+      <button id="nextBtn" class="secondary" type="button" disabled>載入下一頁</button>
+    </section>
+    <section class="card full">
+      <h2><span class="step">6</span>與同學互讀</h2>
+      <p class="help">僅在講師授權可讀取該測試病人時使用。以下欄位只用於讀回或查詢，不會觸發上傳。</p>
+      <div class="row">
+        <div><label for="classmatePatientId">同學的虛構 Patient ID</label><input id="classmatePatientId" type="text" autocomplete="off"></div>
+        <div><label for="classmateObservationId">同學提供的 Observation ID</label><input id="classmateObservationId" type="text" autocomplete="off"></div>
+      </div>
+      <button id="classmateReadBtn" type="button">讀回同學的 Observation</button>
+      <button id="classmateSearchBtn" class="secondary" type="button">查詢同學病人的體溫</button>
+      <p id="classmateCheck" class="notice">讀回或查詢後會核對結果是否屬於指定同學病人。</p>
+    </section>
+    <section class="card full">
+      <h2>連線提示</h2>
+      <p class="notice">本頁由瀏覽器直接連到講師提供的 FHIR 伺服器，不會代替伺服器代理請求。伺服器必須允許目前網頁來源的 CORS，並允許本頁使用的授權與 FHIR 標頭；若要從回應標頭取得 ID，CORS 也須公開 Location。遇到 CORS 或重新導向錯誤時，請先向講師確認伺服器設定。對 POST 發生逾時或無法讀取回應時，先用查詢確認是否已建立資料，再決定是否重送。</p>
+    </section>
+  </div>
+</main>
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const LOINC = "http://loinc.org";
+const UCUM = "http://unitsofmeasure.org";
+const CATEGORY = "http://terminology.hl7.org/CodeSystem/observation-category";
+let busy = false;
+let previewSnapshot = null;
+let nextUrl = null;
+let searchSnapshot = null;
+let pageCount = 0;
+let resultCount = 0;
+let visitedPages = new Set();
+let uploadedObservation = null;
+
+function setStatus(text, error = false) {
+  $("status").textContent = text;
+  $("status").classList.toggle("error", error);
+}
+function updateButtons() {
+  ["previewBtn", "readBtn", "searchBtn", "metadataBtn", "classmateReadBtn", "classmateSearchBtn"].forEach(id => $(id).disabled = busy);
+  $("postBtn").disabled = busy || !previewSnapshot || !$("confirmUpload").checked;
+  $("nextBtn").disabled = busy || !nextUrl;
+}
+function invalidatePreview() {
+  previewSnapshot = null;
+  $("confirmUpload").checked = false;
+  $("confirmUpload").disabled = true;
+  $("preview").textContent = "設定或量測資料已變更，請重新產生預覽。";
+  $("postTarget").textContent = "";
+  updateButtons();
+}
+function resetSearch() {
+  nextUrl = null;
+  searchSnapshot = null;
+  updateButtons();
+}
+function validId(value) {
+  return /^[A-Za-z0-9.-]{1,64}$/.test(value);
+}
+function getConfig(requirePatient = true) {
+  const issues = [];
+  let base;
+  try {
+    base = new URL($("baseUrl").value.trim());
+    if (!/^https?:$/.test(base.protocol) || base.username || base.password || base.search || base.hash) throw new Error();
+    base.pathname = base.pathname.replace(/\/+$/, "") + "/";
+  } catch {
+    issues.push("請填寫有效的 base URL，不可含帳密、查詢字串或片段。");
+  }
+  const patientId = $("patientId").value.trim();
+  if (requirePatient && !validId(patientId)) issues.push("請填講師提供的病人 ID（英數字、連字號或句點，最多 64 字元）。");
+  const auth = $("authMode").value;
+  const token = $("token").value.trim();
+  if (!auth) issues.push("請依講師設定選擇授權方式。");
+  if (auth === "other") issues.push("此頁尚未整合其他授權方式，請依講師提供的規格完成設定。");
+  if (auth === "bearer") {
+    if (!token) issues.push("請輸入講師提供的短效 token。");
+    if (/\s/.test(token)) issues.push("Token 不可含空白或 Bearer 前綴。");
+    if (base && base.protocol !== "https:") issues.push("Bearer token 僅可透過 HTTPS 傳送。");
+  }
+  if (!$("fictional").checked) issues.push("請確認只使用虛構資料。");
+  if (issues.length) throw new Error("設定尚未完整：\n• " + issues.join("\n• "));
+  return { base: base.href, patientId, auth, token };
+}
+function validateDateTime(value) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(Z|([+-])(\d{2}):(\d{2}))$/.exec(value);
+  if (!m) throw new Error("量測時間須含秒與時區，例如 2026-10-17T09:00:00+08:00。");
+  const [, ys, mos, ds, hs, mis, ss, zone, , ohs, oms] = m;
+  const y = Number(ys), mo = Number(mos), d = Number(ds), h = Number(hs), mi = Number(mis), s = Number(ss);
+  const leap = y % 4 === 0 && (y % 100 !== 0 || y % 400 === 0);
+  const monthDays = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  if (y < 1 || mo < 1 || mo > 12 || d < 1 || d > monthDays[mo - 1] || h > 23 || mi > 59 || s > 59 ||
+      (zone !== "Z" && (Number(ohs) > 14 || Number(oms) > 59 || (Number(ohs) === 14 && Number(oms) !== 0)))) {
+    throw new Error("量測時間的日期、時間或時區不合法。");
+  }
+}
+function makeObservation(c) {
+  const effectiveDateTime = $("measuredAt").value.trim();
+  validateDateTime(effectiveDateTime);
+  const raw = $("temperature").value.trim();
+  const value = Number(raw);
+  if (!raw || !$("temperature").validity.valid || !Number.isFinite(value)) throw new Error("請輸入有效的數值體溫。");
+  return {
+    resourceType: "Observation",
+    status: "final",
+    category: [{ coding: [{ system: CATEGORY, code: "vital-signs" }] }],
+    code: { coding: [{ system: LOINC, code: "8310-5", display: "Body temperature" }], text: "體溫" },
+    subject: { reference: "Patient/" + c.patientId },
+    effectiveDateTime,
+    valueQuantity: { value, unit: "°C", system: UCUM, code: "Cel" }
+  };
+}
+function outcomeMessage(resource) {
+  if (resource?.resourceType !== "OperationOutcome") return "";
+  return (resource.issue || []).map(issue => [issue.severity, issue.code, issue.details?.text, issue.diagnostics].filter(Boolean).join("：")).join("\n");
+}
+function serviceUrl(value, c, relativeTo = c.base) {
+  const url = new URL(value, relativeTo);
+  const base = new URL(c.base);
+  if (url.origin !== base.origin || !url.pathname.startsWith(base.pathname) || url.username || url.password || url.hash) {
+    throw new Error("伺服器提供的連結超出已設定的服務範圍，已停止載入。");
+  }
+  return url.href;
+}
+async function request(url, c, body) {
+  const headers = { Accept: "application/fhir+json" };
+  if (c.auth === "bearer") headers.Authorization = "Bearer " + c.token;
+  if (body !== undefined) {
+    headers["Content-Type"] = "application/fhir+json";
+    headers.Prefer = "return=representation";
+  }
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 30000);
+  try {
+    const response = await fetch(serviceUrl(url, c), {
+      method: body === undefined ? "GET" : "POST",
+      headers, body, signal: controller.signal,
+      credentials: "omit", redirect: "error", cache: "no-store", referrerPolicy: "no-referrer"
+    });
+    const text = await response.text();
+    let data = null;
+    try { data = text ? JSON.parse(text) : null; } catch { /* 回應可能不是 JSON */ }
+    $("response").textContent = data ? JSON.stringify(data, null, 2) : (text || "（空回應）");
+    if (!response.ok) throw new Error(`HTTP ${response.status} ${response.statusText}\n${outcomeMessage(data) || text.slice(0, 2000) || "伺服器未提供錯誤內容。"}`);
+    return { response, data };
+  } catch (error) {
+    if (error.name === "AbortError") throw new Error("等待超過 30 秒。POST 可能已建立資料，請先查詢確認再決定是否重送。");
+    if (error instanceof TypeError) throw new Error("瀏覽器無法讀取伺服器回應。請確認網路、HTTPS 與伺服器 CORS 設定。POST 若已送出，請先查詢確認以避免重複建立。");
+    throw error;
+  } finally { clearTimeout(timer); }
+}
+async function run(action) {
+  if (busy) return;
+  busy = true; updateButtons();
+  try { await action(); }
+  catch (error) { setStatus(error.message, true); }
+  finally { busy = false; updateButtons(); }
+}
+function clearResults() {
+  $("results").replaceChildren(); resultCount = 0; pageCount = 0; visitedPages = new Set(); nextUrl = null;
+  $("pageBadge").textContent = "尚無結果";
+}
+function isTemperature(resource) {
+  return resource?.resourceType === "Observation" && resource.code?.coding?.some(coding => coding.system === LOINC && coding.code === "8310-5");
+}
+function addObservation(resource) {
+  const q = resource.valueQuantity || {};
+  const time = resource.effectiveDateTime || (resource.effectivePeriod ? `${resource.effectivePeriod.start || "未提供"} ～ ${resource.effectivePeriod.end || "未提供"}` : "未提供");
+  const tr = document.createElement("tr");
+  [resource.id || "未提供", resource.subject?.reference || "未提供", time, typeof q.value === "number" ? String(q.value) : (resource.dataAbsentReason?.text || "未提供數值"), q.unit || q.code || "未提供"].forEach(text => {
+    const td = document.createElement("td"); td.textContent = text; tr.append(td);
+  });
+  $("results").append(tr); resultCount++;
+}
+function compareUploaded(resource) {
+  if (!uploadedObservation) return "目前沒有這次上傳內容可供核對。";
+  const expected = uploadedObservation;
+  const checks = [
+    ["病人", resource.subject?.reference === expected.subject.reference],
+    ["時間（同一瞬間，原時區顯示保留）", Boolean(resource.effectiveDateTime) && Date.parse(resource.effectiveDateTime) === Date.parse(expected.effectiveDateTime)],
+    ["體溫數值", resource.valueQuantity?.value === expected.valueQuantity.value],
+    ["UCUM Cel", resource.valueQuantity?.system === UCUM && resource.valueQuantity?.code === "Cel"]
+  ];
+  return "已讀回伺服器資料，與本次上傳內容核對：\n" + checks.map(item => (item[1] ? "符合：" : "不符合：") + item[0]).join("\n");
+}
+function checkClassmate(resource, patientId) {
+  const wanted = "Patient/" + patientId;
+  const actual = resource.subject?.reference || "未提供";
+  $("classmateCheck").textContent = "指定同學病人：" + wanted + "；回傳病人：" + actual + "；" + (actual === wanted ? "符合" : "不符合，請確認 ID 與講師授權");
+}
+function capabilitySummary(capability) {
+  if (capability?.resourceType !== "CapabilityStatement") throw new Error("/metadata 回應不是 CapabilityStatement。");
+  const version = capability.fhirVersion || "未宣告";
+  if (!/^4\.0\./.test(version)) throw new Error("伺服器宣告 FHIR " + version + "，不符合 FHIR R4（4.0.x）。");
+  const servers = (capability.rest || []).filter(item => item.mode === "server");
+  const observation = servers.flatMap(item => item.resource || []).find(item => item.type === "Observation");
+  const interactions = new Set((observation?.interaction || []).map(item => item.code));
+  const params = new Set((observation?.searchParam || []).map(item => item.name));
+  const declared = (name, exists) => name + "：" + (exists ? "metadata 已宣告" : observation ? "metadata 未宣告" : "無法確認（未列 Observation server 能力）");
+  return ["FHIR 版本：" + version + "（符合 R4）", declared("Observation create", interactions.has("create")), declared("Observation read", interactions.has("read")), declared("Observation search-type", interactions.has("search-type")), declared("patient 搜尋參數", params.has("patient")), declared("code 搜尋參數", params.has("code")), "注意：metadata 是能力宣告，不是實際請求、CORS 或帳號權限測試。"].join("\n");
+}
+async function loadPage(url, c) {
+  const safeUrl = serviceUrl(url, c);
+  if (visitedPages.has(safeUrl)) { nextUrl = null; throw new Error("偵測到重複分頁連結，已停止載入。"); }
+  const { response, data } = await request(safeUrl, c);
+  if (data?.resourceType !== "Bundle" || data.type !== "searchset") throw new Error(outcomeMessage(data) || "搜尋回應不是 FHIR searchset Bundle。");
+  visitedPages.add(safeUrl); pageCount++;
+  const warnings = [];
+  for (const entry of data.entry || []) {
+    if (entry.resource?.resourceType === "OperationOutcome") warnings.push(outcomeMessage(entry.resource));
+    else if (entry.search?.mode !== "include" && isTemperature(entry.resource)) {
+      addObservation(entry.resource);
+      if (searchSnapshot?.classmatePatientId) checkClassmate(entry.resource, searchSnapshot.classmatePatientId);
+    }
+  }
+  nextUrl = null;
+  const next = data.link?.find(link => link.relation === "next")?.url;
+  if (next) {
+    try {
+      const candidate = serviceUrl(next, c, response.url || safeUrl);
+      if (visitedPages.has(candidate)) warnings.push("next 指向已讀取頁面，已停止分頁。");
+      else nextUrl = candidate;
+    } catch (error) { warnings.push(error.message); }
+  }
+  $("pageBadge").textContent = `已載入 ${pageCount} 頁 · ${resultCount} 筆`;
+  setStatus(`查詢完成。${Number.isInteger(data.total) ? `伺服器回報搜尋總數 ${data.total} 筆。` : ""}${nextUrl ? "還有下一頁。" : "沒有更多頁面。"}${warnings.length ? "\n" + warnings.filter(Boolean).join("\n") : ""}`);
+}
+
+$("authMode").addEventListener("change", () => {
+  $("tokenBox").hidden = $("authMode").value !== "bearer";
+  invalidatePreview(); resetSearch();
+});
+for (const id of ["baseUrl", "patientId", "fictional", "token"]) {
+  $(id).addEventListener("input", () => { invalidatePreview(); resetSearch(); });
+  $(id).addEventListener("change", () => { invalidatePreview(); resetSearch(); });
+}
+for (const id of ["measuredAt", "temperature"]) $(id).addEventListener("input", invalidatePreview);
+$("clearToken").addEventListener("click", () => { $("token").value = ""; invalidatePreview(); resetSearch(); setStatus("已清除 token。"); });
+$("confirmUpload").addEventListener("change", updateButtons);
+$("metadataBtn").addEventListener("click", () => run(async () => {
+  const c = getConfig(false); setStatus("正在讀取 /metadata……");
+  const { data } = await request(c.base + "metadata", c);
+  $("metadataResult").textContent = capabilitySummary(data);
+  setStatus("伺服器能力檢查完成。metadata 是宣告，實際操作仍以請求結果為準。");
+}));
+
+$("previewBtn").addEventListener("click", () => {
+  try {
+    const c = getConfig(true);
+    const body = JSON.stringify(makeObservation(c), null, 2);
+    previewSnapshot = { base: c.base, body };
+    $("preview").textContent = body;
+    $("postTarget").textContent = `POST 目標：${c.base}Observation`;
+    $("confirmUpload").checked = false; $("confirmUpload").disabled = false;
+    setStatus("請核對 JSON 與目標網址，再勾選確認。");
+  } catch (error) { invalidatePreview(); setStatus(error.message, true); }
+  updateButtons();
+});
+$("postBtn").addEventListener("click", () => run(async () => {
+  const c = getConfig(true);
+  if (!previewSnapshot || !$("confirmUpload").checked || previewSnapshot.base !== c.base || previewSnapshot.body !== JSON.stringify(makeObservation(c), null, 2)) throw new Error("預覽已失效，請重新預覽並確認。");
+  const body = previewSnapshot.body;
+  uploadedObservation = JSON.parse(body);
+  invalidatePreview(); setStatus("正在上傳，請勿重複送出……");
+  const { response, data } = await request(c.base + "Observation", c, body);
+  let id = data?.resourceType === "Observation" ? data.id : null;
+  if (!id) {
+    const location = response.headers.get("Location");
+    if (location) {
+      try { id = new URL(location, c.base).pathname.match(/\/Observation\/([A-Za-z0-9.-]{1,64})(?:\/_history\/[^/]+)?\/?$/)?.[1] || null; }
+      catch { /* ID 保持空值 */ }
+    }
+  }
+  if (id) $("observationId").value = id;
+  setStatus(`伺服器回報成功（HTTP ${response.status}）。\n${id ? "Observation ID：" + id : "尚未取得 ID。確認回應中的 Observation.id 或 CORS 是否公開 Location；請勿直接重送。"}${outcomeMessage(data) ? "\n" + outcomeMessage(data) : ""}`);
+  if (id) {
+    try {
+      const { data: readBack } = await request(c.base + "Observation/" + encodeURIComponent(id), c);
+      if (readBack?.resourceType !== "Observation") throw new Error(outcomeMessage(readBack) || "讀回回應不是 Observation。");
+      clearResults(); addObservation(readBack); $("pageBadge").textContent = "上傳後 ID 讀回 · 1 筆";
+      $("comparison").textContent = compareUploaded(readBack);
+      setStatus("POST 成功並已依 ID 讀回。\n" + $("comparison").textContent);
+    } catch (error) {
+      $("comparison").textContent = "POST 已回報成功，但自動讀回失敗：" + error.message;
+      setStatus("POST 已回報成功；自動讀回未完成，請使用步驟 4 的 ID 讀回按鈕。\n" + error.message, true);
+    }
+  }
+}));
+$("readBtn").addEventListener("click", () => run(async () => {
+  const c = getConfig(true); const id = $("observationId").value.trim();
+  if (!validId(id)) throw new Error("請輸入有效的 Observation ID。");
+  resetSearch(); setStatus("正在讀取……");
+  const { data } = await request(c.base + "Observation/" + encodeURIComponent(id), c);
+  if (data?.resourceType !== "Observation") throw new Error(outcomeMessage(data) || "回應不是 Observation。");
+  clearResults();
+  if (!isTemperature(data)) throw new Error("讀回的 Observation 不含 LOINC 8310-5，未顯示於體溫表格。");
+  addObservation(data); $("pageBadge").textContent = "ID 讀回 · 1 筆";
+  if (uploadedObservation && id === $("observationId").value.trim()) $("comparison").textContent = compareUploaded(data);
+  setStatus("讀取完成。" + (uploadedObservation ? "\n" + $("comparison").textContent : ""));
+}));
+$("searchBtn").addEventListener("click", () => run(async () => {
+  const c = getConfig(true); clearResults(); searchSnapshot = c;
+  const url = new URL("Observation", c.base);
+  url.searchParams.set("patient", "Patient/" + c.patientId);
+  url.searchParams.set("code", LOINC + "|8310-5");
+  $("pageBadge").textContent = "查詢中……"; setStatus("正在查詢……");
+  await loadPage(url.href, c);
+}));
+$("nextBtn").addEventListener("click", () => run(async () => {
+  const c = getConfig(false);
+  if (!nextUrl || !searchSnapshot || c.base !== searchSnapshot.base || c.auth !== searchSnapshot.auth || c.token !== searchSnapshot.token) {
+    resetSearch(); throw new Error("查詢設定已變更，請重新查詢。");
+  }
+  if (searchSnapshot.classmatePatientId) c.classmatePatientId = searchSnapshot.classmatePatientId;
+  setStatus("正在載入下一頁……"); await loadPage(nextUrl, c);
+}));
+$("classmateReadBtn").addEventListener("click", () => run(async () => {
+  const c = getConfig(false); const patientId = $("classmatePatientId").value.trim();
+  const id = $("classmateObservationId").value.trim();
+  if (!validId(patientId) || !validId(id)) throw new Error("請填入有效的同學 Patient ID 與 Observation ID。");
+  resetSearch(); clearResults(); setStatus("正在讀取同學的 Observation……");
+  const { data } = await request(c.base + "Observation/" + encodeURIComponent(id), c);
+  if (data?.resourceType !== "Observation") throw new Error(outcomeMessage(data) || "回應不是 Observation。");
+  if (!isTemperature(data)) throw new Error("同學的 Observation 不含 LOINC 8310-5，無法列為體溫紀錄。");
+  addObservation(data);
+  $("pageBadge").textContent = "同學 ID 讀回 · 1 筆"; checkClassmate(data, patientId);
+  setStatus("同學紀錄讀回完成。請核對回傳病人是否符合指定 Patient ID。");
+}));
+$("classmateSearchBtn").addEventListener("click", () => run(async () => {
+  const c = getConfig(false); const patientId = $("classmatePatientId").value.trim();
+  if (!validId(patientId)) throw new Error("請填入有效的同學 Patient ID。");
+  c.classmatePatientId = patientId; c.patientId = patientId; searchSnapshot = c; clearResults();
+  const url = new URL("Observation", c.base);
+  url.searchParams.set("patient", "Patient/" + patientId); url.searchParams.set("code", LOINC + "|8310-5");
+  $("pageBadge").textContent = "查詢中……"; setStatus("正在查詢同學病人的體溫……"); await loadPage(url.href, c);
+}));
+updateButtons();
+</script>
+</body>
+</html>
+
