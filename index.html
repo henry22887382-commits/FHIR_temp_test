@@ -24,7 +24,7 @@
 <header>
   <div class="eyebrow">FHIR R4 · 教學操作頁</div>
   <h1>體溫輸入與調閱</h1>
-  <p>填入講師提供的連線設定，預覽並確認後送出體溫紀錄。</p>
+  <p>可直接以 GitHub Pages 開啟；填入講師提供的連線設定，預覽並確認後送出體溫紀錄。</p><p>FHIR 請求由瀏覽器直連講師的 HTTPS 伺服器。請管理者允許 CORS 來源 <code>https://henry22887382-commits.github.io</code>。</p>
 </header>
 <main>
   <p id="status" class="status" role="status" aria-live="polite">請填寫講師提供的 FHIR 伺服器與測試資料設定。</p>
@@ -161,9 +161,10 @@ function getConfig(requirePatient = true) {
   try {
     base = new URL($("baseUrl").value.trim());
     if (!/^https?:$/.test(base.protocol) || base.username || base.password || base.search || base.hash) throw new Error();
+    if (location.protocol === "https:" && base.protocol !== "https:") throw new Error("GitHub Pages 使用 HTTPS，FHIR base URL 也必須使用 HTTPS（瀏覽器會封鎖 HTTP 混合內容）。");
     base.pathname = base.pathname.replace(/\/+$/, "") + "/";
   } catch {
-    issues.push("請填寫有效的 base URL，不可含帳密、查詢字串或片段。");
+    issues.push("請填寫有效的 base URL，不可含帳密、查詢字串或片段；由 GitHub Pages 開啟時必須使用 HTTPS。");
   }
   const patientId = $("patientId").value.trim();
   if (requirePatient && !validId(patientId)) issues.push("請填講師提供的病人 ID（英數字、連字號或句點，最多 64 字元）。");
@@ -436,4 +437,6 @@ updateButtons();
 </script>
 </body>
 </html>
+
+
 
